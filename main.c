@@ -270,7 +270,15 @@ void ReadFile(const char* name){
 
     Header();
     while(fgets(buffer, sizeof(buffer), filePointer) != NULL){
-        printf("Line %d: %s",line, buffer);
+        if(line < 9){
+            printf("Line %d:  %s",line, buffer);
+        }
+        else if(line > 9){
+            printf("Line %d: %s",line, buffer);
+        }
+        else if(line > 99){
+            printf("Line %d:%s",line, buffer);
+        }
         line++;
     }
    
