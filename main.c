@@ -2,27 +2,43 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <unistd.h>
+#include <ctype.h>
 
 #define MAX_WIDTH 30 //Max width of one column of the table
 #define COL 3
 
+struct arrData{
+    int numline;
+};
+
 void swap(char* a, char* b);
+void swapStrings(char **str1, char **str2);
 void removeSpacesAndNewLine(char* str);
+void Header();
+
 void ReadFile(const char* name);
 void CreateFile(const char* name);
 void DeleteFile(const char* name);
-void ReadLine(const char* name, int fline, int lline);
-void PasteLine(const char* name, int num);
-void DeleteLine(const char* name, int num);  
-void SortLines(const char* name);
-void ChangeLine(const char* name, int num);
-void SortArray(char*** arr, int parameter, int line, int dir);
-void swapStrings(char **str1, char **str2);
-void Header();
 
+void ReadLine(const char* name, int fline, int lline);
+int DeleteLine(const char* name, int num);  
+void PasteLine(const char* name, int num);
+void SortLines(const char* name, int sorted);
+void ChangeLine(const char* name, int num);
+
+void SortArray(char*** arr, int parameter, int line, int dir);
+
+int CheckIfSorted(const char* name);
+int CheckInput(char* prompt, int min);
 int OpenFile(const char* name);
+int CheckIfFileExists(char* name);
+
+int sortedAsc(char*** arr, int lines, int col);
+int sortedDesc(char*** arr, int lines, int col);
+
 char*** Write(const char* name, int linecount, char mode);
-char*** splitArray(const char* name, const char* delimiter);
+char*** splitArray(const char* name, const char* delimiter, struct arrData* data);
 
 int main(){
     FILE* filePointer;
@@ -35,6 +51,11 @@ int main(){
         if(strcmp(choice, "open") == 0){
             printf("Please, enter the name of a file including the format (example.txt): ");
             scanf("%s", &name);
+            if(CheckIfFileExists(name)){}
+            else{
+                printf("File with such name does not exist. Try again\n");
+                continue;
+            }
             OpenFile(name);
         }
         else if (strcmp(choice, "create") == 0){
@@ -88,7 +109,99 @@ void removeSpacesAndNewLine(char* str) {
     str[length] = '\0';
 
 }
+int CheckInput(char* prompt, int min){
+    char buffer[100];
+    int check;
+    printf("%s", prompt);
+    while(1){
+        check = 1;
+        scanf("%99s", buffer);
+        for(int i = 0; buffer[i]; i++){
+            if(isdigit(buffer[i]) == 0 || atoi(buffer) < min){
+                printf("\nYour input is invalid. Reenter: ");
+                check = 0;
+                break;
+            }
+            
+        }
+        if(check == 1){
+            break;
+        }
+    }
+    return atoi(buffer);
+}
 
+
+int CheckIfFileExists(char* name){
+    return access(name, F_OK) != -1;
+}
+
+
+int CheckIfSorted(const char* name){
+    struct arrData data;
+    char ***arr = splitArray(name, "|", &data);
+    int lines = data.numline;
+    for(int i = 0; i < lines; i++){
+        for(int k = 0; k < COL; k++){
+            removeSpacesAndNewLine(arr[i][k]);
+        }
+    }
+    int pass;
+    //Check if sorted in ascending order
+    for(int i = 0; i < COL; i++){
+        pass = sortedAsc(arr, lines, i);
+        if(pass != 0){
+            break;
+        }
+    }
+    printf("\n%d\n", pass);
+    //Check if sorted in descending order
+    if(pass != 0){
+        return pass;
+    }
+    pass = 0;
+    for(int i = 0; i < COL; i++){
+        pass = sortedDesc(arr, lines, i);
+        if(pass != 0){
+            break;
+        }
+    }
+   
+    return pass;
+   
+
+    
+}
+int sortedAsc(char*** arr, int lines, int col){
+    for(int i = 0; i < lines-1; i++){
+        if(col == 0){
+            if(strcmp(arr[i][0], arr[i+1][0]) >= 0){
+                return 0;
+            }
+        }
+        else if(col == 1 || col == 2){
+            if(atof(arr[i][col]) > atof(arr[i+1][col])){
+                return 0;
+            }
+        }
+    }
+    return col+1;
+}
+int sortedDesc(char*** arr, int lines, int col){
+    for(int i = 0; i < lines-1; i++){
+        if(col == 0){
+            if(strcmp(arr[i][0], arr[i+1][0]) <= 0){
+                return 0;
+            }
+        }
+        else if(col == 1 || col == 2){
+            if(atof(arr[i][col]) < atof(arr[i+1][col])){
+                return 0;
+            }
+        }
+    }
+    return col+4;
+}
 
 
 void CreateFile(const char* name){
@@ -118,19 +231,33 @@ void ReadLine(const char* name, int fline, int lline){
     FILE* filePointer;
     char buffer[100];
     filePointer = fopen(name, "r");
-    Header();
-    for(int k = fline; k <= lline; k++){
-        for(int i = 1; i <= fline; i++){
-            if(fgets(buffer, sizeof(buffer), filePointer) == 0){
-                printf("Line %d not found in the file.\n", k);
-                fclose(filePointer);
-                
-            }
-        }
-        printf("Line %d : %s", k, buffer);
-        
+    fseek(filePointer, 0, SEEK_END);
+    if(ftell(filePointer) == 0){
+        printf("File is empty\n");
+        fclose(filePointer);
     }
-    fclose(filePointer);
+    else{
+        fclose(filePointer);
+        filePointer = fopen(name, "r");
+        for(int i = 1; i < fline; i++){
+            fgets(buffer, sizeof(buffer), filePointer);
+        }
+        Header();
+        for(int k = fline; k <= lline; k++){
+            if(fgets(buffer, sizeof(buffer), filePointer) == NULL){
+                printf("Line %d not found\n", k);
+                fclose(filePointer);
+            }
+            else{
+                printf("Line %d : %s", k, buffer);
+            }
+        
+        
+        }
+        fclose(filePointer);
+    
+    }
+
     
     
 }
@@ -162,7 +289,7 @@ void PasteLine(const char* name, int num){
     char buffer[1000];
     char newline[1000];
     int currentPos = 1;
-  
+    //0 - pasting as the last line
     if(num == 0){
         while(fgets(buffer, sizeof(buffer), filePointer) != NULL){
             fprintf(tempFile, "%s", buffer);
@@ -211,7 +338,7 @@ void PasteLine(const char* name, int num){
 
 }
 
-void DeleteLine(const char* name, int num){
+int DeleteLine(const char* name, int num){
     FILE* filePointer;
     FILE* tempFile;
     filePointer = fopen(name, "r");
@@ -227,16 +354,23 @@ void DeleteLine(const char* name, int num){
         }
         
     }
+    if(num > currentLine){
+        printf("\nLine not found\n");
+        return 0;
+    }
     fclose(filePointer);
     fclose(tempFile);
     remove(name);
     rename("temp.txt", name);
+    return 1;
 }
 
 
 void ChangeLine(const char* name, int num){
-    DeleteLine(name, num);
-    PasteLine(name, num);
+    if(DeleteLine(name, num)){
+        PasteLine(name, num);
+    }
+    
 }
 
 
@@ -303,26 +437,36 @@ void SortArray(char*** arr, int parameter, int line, int dir){
 
 
 
-void SortLines(const char *name) {
+void SortLines(const char *name, int sorted) {
     FILE *filePointer;
     FILE* tempfile;
-    char ***arr = splitArray(name, "|");
+    struct arrData data;
+
+
+    char ***arr = splitArray(name, "|", &data);
+
     int choice;
     int dir;
     char buffer[100];
-    int line = 0;
+    int line = data.numline; 
     filePointer = fopen(name, "r");
     tempfile = fopen("temp.txt", "w");
-    while (fgets(buffer, sizeof(buffer), filePointer) != NULL) {
-        line++;
+    if(sorted == 0){
+        choice = CheckInput("Choose how do you want to sort: \n1. Oblast\n2. Population\n3. Square\n", 1);
+        dir = CheckInput("\nChoose how do you want to sort: \n1. Ascending\n2. Descending\n", 1);
+        SortArray(arr, choice, line, dir);
+    }
+    else if(sorted > 0){
+        if(sorted >= 1 && sorted < 4){
+            SortArray(arr, sorted, line, 1);
+        }
+        else if(sorted >= 4){
+            SortArray(arr, sorted - 3, line, 2);
+        }
     }
     
-    printf("Choose how do you want to sort: 1. Oblast\n2. Population\n3. Square\n");
-    scanf("%d", &choice);
-    printf("\nChoose how do you want to sort: 1. Ascending\n2. Descending\n");
-    scanf("%d", &dir);
 
-    SortArray(arr, choice, line, dir);
+    
     for(int i = 0; i < line; i++){
         for(int j = 0; j < COL; j++){
             if(j != COL-1){
@@ -355,7 +499,7 @@ void SortLines(const char *name) {
 
 
 
-char*** splitArray(const char* name, const char* delimiter){
+char*** splitArray(const char* name, const char* delimiter, struct arrData* data){
     FILE* filePointer;
     int line = 0;
 
@@ -373,7 +517,7 @@ char*** splitArray(const char* name, const char* delimiter){
             line++;
         }
     }
-
+    data->numline = line;
     // Reopening the file
     fseek(filePointer, 0, SEEK_SET);
     int i = 0;
@@ -408,7 +552,6 @@ char*** splitArray(const char* name, const char* delimiter){
         int j = 0;
         while(token != NULL){
             if(strlen(token) > 0){
-                //strcpy(arr2[i][j], token);
                 strncpy(arr2[i][j], token, MAX_WIDTH - 1);
                 arr2[i][j][MAX_WIDTH - 1] = '\0';
             }
@@ -439,7 +582,6 @@ char*** Write(const char* name, int linecount, char mode){ //w - writing mode; p
         line++;
     }
     
-    printf("Currect at line %d\n", line);
     
     //Dynamic Array Declaration
     char ***arr = (char***)malloc(linecount*sizeof(char**));
@@ -501,54 +643,72 @@ char*** Write(const char* name, int linecount, char mode){ //w - writing mode; p
 }
 
 
-
-
-
 int OpenFile(const char* name){
     FILE* filePointer;
     int choice;
     int num;
-    printf("\nFile is ready. Next functions available: \n1.Read line\n2.Read file \n3.Write\n4.Paste line\n5.Delete line\n6.Sort file\n7.Change line\nEnter your choice: ");
-    scanf("%d", &choice);
+    int sorted;
+    sorted  = CheckIfSorted(name);
+    char answer;
+
+    choice = CheckInput("\nFile is ready. Next functions available: \n1.Read line\n2.Read file \n3.Write\n4.Paste line\n5.Delete line\n6.Sort file\n7.Change line\nEnter your choice: ", 1);
+    while(choice > 7){
+        choice = CheckInput("Please, reenter your choice", 1);
+    }
     printf("\n");
     if(choice == 1){
-        int line;
         int fline;
-        printf("\nWhich range of lines do you want to print out? First line: ");
-        scanf("%d", &line);
-        printf("\nLast line: ");
-        scanf("%d", &fline);
-        ReadLine(name, line, fline);
+        int lline;
+        printf("\nWhich range of lines do you want to print out?");
+        fline = CheckInput("First line: ", 1);
+        lline = CheckInput("\nLast line: ", 1);
+        ReadLine(name, fline, lline);
     }
     else if(choice == 2){
         ReadFile(name);
     }
     else if(choice == 3){
-        int linecount;
-        printf("\nHow many lines do you want to write? ");
-        scanf("%d", &linecount);
+        int linecount = CheckInput("\nHow many lines do you want to write? Enter: ", 1);
         Write(name, linecount, 'w');
     }
     else if(choice == 4){
-        printf("Enter the position where you want to paste the line: ");
-        scanf("%d", &num);
-        PasteLine(name, num);
+        if(sorted > 0){
+            printf("The file is sorted. Would you like to maintains its order (default - N)? Y/N\n");
+            getchar();
+            scanf("%c", &answer);
+            if(answer == 'Y'){
+                PasteLine(name, 0);
+                SortLines(name, sorted);
+                
+            }
+            else if(answer == 'N'){
+                num = CheckInput("Enter the position where you want to paste the line (0 - end position): ", 0);
+                PasteLine(name, num);
+            }
+            else{
+                printf("Couldn't determine the answer. Set to default (N)");
+
+            }
+
+        }
+        else{
+            num = CheckInput("Enter the position where you want to paste the line (0 - end position): ", 0);
+            PasteLine(name, num);
+        }
+        
     }
     else if(choice == 5){
         ReadFile(name);
-        printf("Enter the position where you want to delete a line: ");
-        scanf("%d", &num);
+        num = CheckInput("Enter the position where you want to delete a line: ", 1);
         DeleteLine(name, num);
     }
     else if(choice == 6){
-        SortLines(name);
+        SortLines(name, 0);
     }
     else if(choice == 7){
-        printf("Enter the position where you want to change a line: ");
-        scanf("%d", &num);
+        num = CheckInput("Enter the position where you want to change a line: ", 1);
         ChangeLine(name, num);
     }
     return 1;
 
 }
-
